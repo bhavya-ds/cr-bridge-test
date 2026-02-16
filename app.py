@@ -1,5 +1,8 @@
 """
 Simple user authentication API - intentionally vulnerable for testing
+
+WARNING: This code contains intentional security vulnerabilities for cr-bridge testing.
+DO NOT use in production!
 """
 
 import sqlite3
