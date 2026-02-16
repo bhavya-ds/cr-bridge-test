@@ -106,7 +106,7 @@ def transfer_money():
     except ValueError:
         return jsonify({"status": "error", "message": "Invalid amount"}), 400
 
-    # FIX #2 & #3: Parameterized queries + atomic transaction
+    # FIX #2 & #3 & #4: Parameterized queries + atomic transaction + rowcount validation
     conn = sqlite3.connect("banking.db")
     cursor = conn.cursor()
 
@@ -116,17 +116,33 @@ def transfer_money():
             "UPDATE accounts SET balance = balance - ? WHERE account_id = ?",
             (amount, from_account),
         )
+        # FIX #4: Validate that the account exists
+        if cursor.rowcount != 1:
+            conn.rollback()
+            return jsonify(
+                {"status": "error", "message": "Source account not found"}
+            ), 404
+
         cursor.execute(
             "UPDATE accounts SET balance = balance + ? WHERE account_id = ?",
             (amount, to_account),
         )
-        conn.commit()
-    except Exception as e:
-        conn.rollback()
-        conn.close()
-        return jsonify({"status": "error", "message": str(e)}), 500
+        # FIX #4: Validate destination account exists
+        if cursor.rowcount != 1:
+            conn.rollback()
+            return jsonify(
+                {"status": "error", "message": "Destination account not found"}
+            ), 404
 
-    conn.close()
+        conn.commit()
+    except sqlite3.Error:
+        # FIX #4: Catch specific exception, don't leak internals
+        conn.rollback()
+        return jsonify({"status": "error", "message": "Database error"}), 500
+    finally:
+        # FIX #4: Always cleanup connection
+        conn.close()
+
     return jsonify({"status": "transferred", "amount": amount})
 
 
