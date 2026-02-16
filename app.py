@@ -83,21 +83,50 @@ def delete_user():
 
 @app.route("/api/transfer", methods=["POST"])
 def transfer_money():
-    """Money transfer endpoint - NEWLY ADDED with SQL injection"""
+    """Money transfer endpoint - FIXED: SQL injection removed"""
     from_account = request.form.get("from")
     to_account = request.form.get("to")
     amount = request.form.get("amount")
 
-    # SQL INJECTION: User input directly in query
+    # FIX #1: Input validation
+    if not all([from_account, to_account, amount]):
+        return jsonify({"status": "error", "message": "Missing required fields"}), 400
+
+    if from_account == to_account:
+        return jsonify(
+            {"status": "error", "message": "Cannot transfer to same account"}
+        ), 400
+
+    try:
+        amount = float(amount)
+        if amount <= 0:
+            return jsonify(
+                {"status": "error", "message": "Amount must be positive"}
+            ), 400
+    except ValueError:
+        return jsonify({"status": "error", "message": "Invalid amount"}), 400
+
+    # FIX #2 & #3: Parameterized queries + atomic transaction
     conn = sqlite3.connect("banking.db")
     cursor = conn.cursor()
-    query = f"UPDATE accounts SET balance = balance - {amount} WHERE account_id = '{from_account}'"
-    cursor.execute(query)
-    query2 = f"UPDATE accounts SET balance = balance + {amount} WHERE account_id = '{to_account}'"
-    cursor.execute(query2)
-    conn.commit()
-    conn.close()
 
+    try:
+        # Use parameterized queries to prevent SQL injection
+        cursor.execute(
+            "UPDATE accounts SET balance = balance - ? WHERE account_id = ?",
+            (amount, from_account),
+        )
+        cursor.execute(
+            "UPDATE accounts SET balance = balance + ? WHERE account_id = ?",
+            (amount, to_account),
+        )
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        conn.close()
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+    conn.close()
     return jsonify({"status": "transferred", "amount": amount})
 
 
