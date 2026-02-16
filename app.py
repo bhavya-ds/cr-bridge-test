@@ -81,6 +81,26 @@ def delete_user():
     return jsonify({"status": "deleted"})
 
 
+@app.route("/api/transfer", methods=["POST"])
+def transfer_money():
+    """Money transfer endpoint - NEWLY ADDED with SQL injection"""
+    from_account = request.form.get("from")
+    to_account = request.form.get("to")
+    amount = request.form.get("amount")
+
+    # SQL INJECTION: User input directly in query
+    conn = sqlite3.connect("banking.db")
+    cursor = conn.cursor()
+    query = f"UPDATE accounts SET balance = balance - {amount} WHERE account_id = '{from_account}'"
+    cursor.execute(query)
+    query2 = f"UPDATE accounts SET balance = balance + {amount} WHERE account_id = '{to_account}'"
+    cursor.execute(query2)
+    conn.commit()
+    conn.close()
+
+    return jsonify({"status": "transferred", "amount": amount})
+
+
 if __name__ == "__main__":
     # SECURITY ISSUE: Debug mode enabled in production
     # SECURITY ISSUE: Running on 0.0.0.0 exposes to all interfaces
