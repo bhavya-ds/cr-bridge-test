@@ -1,2 +1,5 @@
 # CR-Bridge Test Repository
-# Installation\n\npip install flask
+
+# Installation
+
+pip install flask
